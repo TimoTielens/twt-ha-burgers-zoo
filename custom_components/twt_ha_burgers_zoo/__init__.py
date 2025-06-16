@@ -11,45 +11,53 @@ import pytz
 DOMAIN = "twt_ha_burgers_zoo"
 _LOGGER = logging.getLogger(__name__)
 
-API_URL = "https://www.burgerszoo.nl/api/weather/0?culture=nl-NL"
+API_URL_TEMPLATE = "https://www.burgerszoo.nl/api/weather/{}?culture=nl-NL"
 LAST_API_STATUS_KEY = "last_api_status"
 LAST_API_ERROR_KEY = "last_api_error"
 AMSTERDAM_TZ = pytz.timezone("Europe/Amsterdam")
 
 async def async_setup(hass: HomeAssistant, config: dict):
-    business_hours_entity_id = f"sensor.{DOMAIN}_business_hours"
-    weather_entity_id = f"sensor.{DOMAIN}_weather"
+    business_hours_entity_ids = [f"sensor.{DOMAIN}_business_hours_{i}" for i in range(5)]
+    weather_entity_ids = [f"sensor.{DOMAIN}_weather_{i}" for i in range(5)]
 
     if DOMAIN not in hass.data:
         hass.data[DOMAIN] = {}
 
-    def get_state_from_hours(open_time_str, close_time_str):
-        now = datetime.now(AMSTERDAM_TZ).time()
-        try:
-            open_time = datetime.strptime(open_time_str, "%H:%M:%S").time()
-            close_time = datetime.strptime(close_time_str, "%H:%M:%S").time()
-            if open_time <= now < close_time:
-                return "open"
-            else:
-                return "closed"
-        except Exception as e:
-            _LOGGER.error(f"Error parsing open/close time: {e}")
-            return "unknown"
+    def get_state_from_hours(open_time_str, close_time_str, day_idx):
+        now = datetime.now(AMSTERDAM_TZ)
+        # For today, use current time; for future days, always 'closed' except if you want to calculate for that day
+        if day_idx == 0:
+            now_time = now.time()
+            try:
+                open_time = datetime.strptime(open_time_str, "%H:%M:%S").time()
+                close_time = datetime.strptime(close_time_str, "%H:%M:%S").time()
+                if open_time <= now_time < close_time:
+                    return "open"
+                else:
+                    return "closed"
+            except Exception as e:
+                _LOGGER.error(f"Error parsing open/close time: {e}")
+                return "unknown"
+        else:
+            # For future days, just return 'closed' or 'open' based on your business logic
+            return "closed"
 
-    async def set_business_hours_in_hass(business_hours):
+    async def set_business_hours_in_hass(idx, business_hours):
+        entity_id = business_hours_entity_ids[idx]
         attrs = {}
         state = "unknown"
         if isinstance(business_hours, dict):
             attrs = {k: business_hours[k] for k in ("openTime", "closeTime", "userFriendlyText") if k in business_hours}
             if "openTime" in business_hours and "closeTime" in business_hours:
-                state = get_state_from_hours(business_hours["openTime"], business_hours["closeTime"])
+                state = get_state_from_hours(business_hours["openTime"], business_hours["closeTime"], idx)
         hass.states.async_set(
-            business_hours_entity_id,
+            entity_id,
             state,
             attributes=attrs
         )
 
-    async def set_weather_in_hass(chance_of_rain, temperature, icon_url):
+    async def set_weather_in_hass(idx, chance_of_rain, temperature, icon_url):
+        entity_id = weather_entity_ids[idx]
         attrs = {}
         state = "unknown"
         if temperature is not None:
@@ -61,7 +69,7 @@ async def async_setup(hass: HomeAssistant, config: dict):
         if icon_url is not None:
             attrs["iconUrl"] = icon_url
         hass.states.async_set(
-            weather_entity_id,
+            entity_id,
             state,
             attributes=attrs
         )
@@ -69,30 +77,29 @@ async def async_setup(hass: HomeAssistant, config: dict):
     async def call_external_api(_=None):
         async with aiohttp.ClientSession() as session:
             try:
-                async with session.get(API_URL) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        business_hours = data.get("businessHours")
-                        chance_of_rain = data.get("chanceOfRain")
-                        temperature = data.get("temperature")
-                        icon_url = data.get("iconUrl")
-
-                        if business_hours is not None:
-                            await set_business_hours_in_hass(business_hours)
-                            _LOGGER.info(f"Set businessHours: {business_hours}")
+                # Fetch and set business hours and weather for days 0-4
+                for i in range(5):
+                    api_url = API_URL_TEMPLATE.format(i)
+                    async with session.get(api_url) as response:
+                        if response.status == 200:
+                            data = await response.json()
+                            business_hours = data.get("businessHours")
+                            chance_of_rain = data.get("chanceOfRain")
+                            temperature = data.get("temperature")
+                            icon_url = data.get("iconUrl")
+                            if business_hours is not None:
+                                await set_business_hours_in_hass(i, business_hours)
+                                _LOGGER.info(f"Set businessHours {i}: {business_hours}")
+                            else:
+                                _LOGGER.warning(f"businessHours not found in API response for day {i}.")
+                            await set_weather_in_hass(i, chance_of_rain, temperature, icon_url)
+                            _LOGGER.info(f"Set weather {i}: chanceOfRain={chance_of_rain}, temperature={temperature}, iconUrl={icon_url}")
                         else:
-                            _LOGGER.warning("businessHours not found in API response.")
-
-                        # Set weather sensor
-                        await set_weather_in_hass(chance_of_rain, temperature, icon_url)
-                        _LOGGER.info(f"Set weather: chanceOfRain={chance_of_rain}, temperature={temperature}, iconUrl={icon_url}")
-
-                        hass.data[DOMAIN][LAST_API_STATUS_KEY] = "ok"
-                        hass.data[DOMAIN][LAST_API_ERROR_KEY] = None
-                    else:
-                        _LOGGER.error(f"API call failed with status: {response.status}")
-                        hass.data[DOMAIN][LAST_API_STATUS_KEY] = "fail"
-                        hass.data[DOMAIN][LAST_API_ERROR_KEY] = f"Status: {response.status}"
+                            _LOGGER.error(f"API call failed for day {i} with status: {response.status}")
+                            hass.data[DOMAIN][LAST_API_STATUS_KEY] = "fail"
+                            hass.data[DOMAIN][LAST_API_ERROR_KEY] = f"Status: {response.status}"
+                hass.data[DOMAIN][LAST_API_STATUS_KEY] = "ok"
+                hass.data[DOMAIN][LAST_API_ERROR_KEY] = None
             except Exception as e:
                 _LOGGER.error(f"Error calling external API: {e}")
                 hass.data[DOMAIN][LAST_API_STATUS_KEY] = "fail"
