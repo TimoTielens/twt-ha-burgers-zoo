@@ -1,0 +1,3 @@
+# Requirements for twt-ha-burgers-zoo Home Assistant custom component
+homeassistant>=2024.1.0
+aiohttp
