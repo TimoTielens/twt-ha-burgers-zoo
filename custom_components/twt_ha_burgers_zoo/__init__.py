@@ -7,6 +7,7 @@ from homeassistant.helpers.entity import Entity
 import aiohttp
 from datetime import datetime, time
 import pytz
+import locale
 
 DOMAIN = "twt_ha_burgers_zoo"
 _LOGGER = logging.getLogger(__name__)
@@ -19,6 +20,7 @@ AMSTERDAM_TZ = pytz.timezone("Europe/Amsterdam")
 async def async_setup(hass: HomeAssistant, config: dict):
     business_hours_entity_ids = [f"sensor.{DOMAIN}_business_hours_{i}" for i in range(5)]
     weather_entity_ids = [f"sensor.{DOMAIN}_weather_{i}" for i in range(5)]
+    suggestion_entity_ids = [f"sensor.{DOMAIN}_suggestion_{i}" for i in range(5)]
 
     if DOMAIN not in hass.data:
         hass.data[DOMAIN] = {}
@@ -74,10 +76,47 @@ async def async_setup(hass: HomeAssistant, config: dict):
             attributes=attrs
         )
 
+    # Dutch day names mapping
+    DUTCH_DAYS = {
+        'Monday': 'Maandag',
+        'Tuesday': 'Dinsdag',
+        'Wednesday': 'Woensdag',
+        'Thursday': 'Donderdag',
+        'Friday': 'Vrijdag',
+        'Saturday': 'Zaterdag',
+        'Sunday': 'Zondag',
+    }
+
+    async def set_suggestion_in_hass(idx, suggestion, temperature):
+        entity_id = suggestion_entity_ids[idx]
+        attrs = {}
+        state = ""
+        if isinstance(suggestion, dict):
+            content = suggestion.get("content", "")
+            # Replace {{temperatureText}} with the temperature value from the API
+            if temperature is not None:
+                content = content.replace("{{temperatureText}}", str(temperature))
+            if idx == 0:
+                day_text = "Vandaag"
+            else:
+                from datetime import datetime, timedelta
+                day_en = (datetime.now(AMSTERDAM_TZ) + timedelta(days=idx)).strftime('%A')
+                day_text = DUTCH_DAYS.get(day_en, day_en)
+            content = content.replace("{{dayText}}", day_text)
+            content = content.replace("\u003Cp\u003E", "").replace("\u003C/p\u003E", "")
+            state = content
+            for k in ("ecoDisplayTitle", "ecoDisplaySlogan", "ecoDisplayBlockTitle"):
+                if k in suggestion:
+                    attrs[k] = suggestion[k]
+        hass.states.async_set(
+            entity_id,
+            state,
+            attributes=attrs
+        )
+
     async def call_external_api(_=None):
         async with aiohttp.ClientSession() as session:
             try:
-                # Fetch and set business hours and weather for days 0-4
                 for i in range(5):
                     api_url = API_URL_TEMPLATE.format(i)
                     async with session.get(api_url) as response:
@@ -87,6 +126,7 @@ async def async_setup(hass: HomeAssistant, config: dict):
                             chance_of_rain = data.get("chanceOfRain")
                             temperature = data.get("temperature")
                             icon_url = data.get("iconUrl")
+                            suggestion = data.get("suggestion")
                             if business_hours is not None:
                                 await set_business_hours_in_hass(i, business_hours)
                                 _LOGGER.info(f"Set businessHours {i}: {business_hours}")
@@ -94,6 +134,11 @@ async def async_setup(hass: HomeAssistant, config: dict):
                                 _LOGGER.warning(f"businessHours not found in API response for day {i}.")
                             await set_weather_in_hass(i, chance_of_rain, temperature, icon_url)
                             _LOGGER.info(f"Set weather {i}: chanceOfRain={chance_of_rain}, temperature={temperature}, iconUrl={icon_url}")
+                            if suggestion is not None:
+                                await set_suggestion_in_hass(i, suggestion, temperature)
+                                _LOGGER.info(f"Set suggestion {i}: {suggestion}")
+                            else:
+                                _LOGGER.warning(f"suggestion not found in API response for day {i}.")
                         else:
                             _LOGGER.error(f"API call failed for day {i} with status: {response.status}")
                             hass.data[DOMAIN][LAST_API_STATUS_KEY] = "fail"
