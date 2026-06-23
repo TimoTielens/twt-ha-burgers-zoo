@@ -24,6 +24,7 @@ from custom_components.twt_ha_burgers_zoo.coordinator import (
 from custom_components.twt_ha_burgers_zoo.models import DayData
 from custom_components.twt_ha_burgers_zoo.sensor import (
     BurgersZooBaseEntity,
+    BurgersZooConditionSensor,
     BurgersZooRainSensor,
     BurgersZooTemperatureSensor,
 )
@@ -190,3 +191,70 @@ async def test_rain_sensor_per_forecast_day(
     assert state is not None
     assert state.state == "10"
     assert state.attributes["unit_of_measurement"] == "%"
+
+
+async def test_condition_sensor_reports_raw_icon(hass: HomeAssistant) -> None:
+    entry = _entry()
+    coordinator = _make_coordinator(hass, {0: DayData.from_json({"iconUrl": "FullSun"})})
+
+    sensor = BurgersZooConditionSensor(coordinator, entry, day=0)
+
+    assert sensor.native_value == "FullSun"
+    assert sensor.icon == "mdi:weather-sunny"
+    assert sensor.device_class is None
+    assert sensor.state_class is None
+    assert sensor.unique_id == f"{entry.entry_id}_condition_0"
+
+
+async def test_condition_sensor_icon_mapping(hass: HomeAssistant) -> None:
+    entry = _entry()
+    coordinator = _make_coordinator(
+        hass,
+        {
+            0: DayData.from_json({"iconUrl": "LightRain"}),
+            1: DayData.from_json({"iconUrl": "Blizzard"}),
+        },
+    )
+
+    rain = BurgersZooConditionSensor(coordinator, entry, day=0)
+    unknown = BurgersZooConditionSensor(coordinator, entry, day=1)
+
+    assert rain.icon == "mdi:weather-rainy"
+    assert unknown.native_value == "Blizzard"  # raw value still passes through
+    assert unknown.icon == "mdi:help"
+
+
+async def test_condition_sensor_unknown_when_day_missing(
+    hass: HomeAssistant,
+) -> None:
+    entry = _entry()
+    coordinator = _make_coordinator(hass, {0: DayData.from_json({"iconUrl": "FullSun"})})
+
+    sensor = BurgersZooConditionSensor(coordinator, entry, day=2)
+
+    assert sensor.native_value is None
+    assert sensor.icon is None
+    assert sensor.available is False
+
+
+async def test_condition_sensor_per_forecast_day(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api,
+) -> None:
+    mock_config_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    ent_reg = er.async_get(hass)
+    entities = er.async_entries_for_config_entry(
+        ent_reg, mock_config_entry.entry_id
+    )
+    condition = [e for e in entities if "_condition_" in e.unique_id]
+    # mock_config_entry is configured with forecast_days = 3
+    assert len(condition) == 3
+
+    today = next(e for e in condition if e.unique_id.endswith("_condition_0"))
+    state = hass.states.get(today.entity_id)
+    assert state is not None
+    assert state.state == "FullSun"
