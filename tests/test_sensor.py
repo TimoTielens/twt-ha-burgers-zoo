@@ -200,28 +200,23 @@ async def test_condition_sensor_reports_raw_icon(hass: HomeAssistant) -> None:
     sensor = BurgersZooConditionSensor(coordinator, entry, day=0)
 
     assert sensor.native_value == "FullSun"
-    assert sensor.icon == "mdi:weather-sunny"
     assert sensor.device_class is None
     assert sensor.state_class is None
     assert sensor.unique_id == f"{entry.entry_id}_condition_0"
 
 
-async def test_condition_sensor_icon_mapping(hass: HomeAssistant) -> None:
+async def test_condition_sensor_passes_through_any_value(
+    hass: HomeAssistant,
+) -> None:
     entry = _entry()
     coordinator = _make_coordinator(
-        hass,
-        {
-            0: DayData.from_json({"iconUrl": "LightRain"}),
-            1: DayData.from_json({"iconUrl": "Blizzard"}),
-        },
+        hass, {0: DayData.from_json({"iconUrl": "SomeNewIconValue"})}
     )
 
-    rain = BurgersZooConditionSensor(coordinator, entry, day=0)
-    unknown = BurgersZooConditionSensor(coordinator, entry, day=1)
+    sensor = BurgersZooConditionSensor(coordinator, entry, day=0)
 
-    assert rain.icon == "mdi:weather-rainy"
-    assert unknown.native_value == "Blizzard"  # raw value still passes through
-    assert unknown.icon == "mdi:help"
+    # The icon vocabulary is open-ended, so any value is passed through verbatim.
+    assert sensor.native_value == "SomeNewIconValue"
 
 
 async def test_condition_sensor_unknown_when_day_missing(
@@ -233,7 +228,6 @@ async def test_condition_sensor_unknown_when_day_missing(
     sensor = BurgersZooConditionSensor(coordinator, entry, day=2)
 
     assert sensor.native_value is None
-    assert sensor.icon is None
     assert sensor.available is False
 
 

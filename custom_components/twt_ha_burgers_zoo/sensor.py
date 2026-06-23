@@ -135,16 +135,11 @@ class BurgersZooRainSensor(BurgersZooBaseEntity):
 
 
 class BurgersZooConditionSensor(BurgersZooBaseEntity):
-    """Weather condition (icon) for a single forecast day."""
+    """Weather condition (icon) for a single forecast day.
 
-    # Maps the API's icon strings to MDI icons. Intentionally small — only the
-    # values we've observed. An unmapped value keeps its raw state and shows a
-    # question mark, signalling it is new and worth adding here.
-    _ICON_MAP = {
-        "FullSun": "mdi:weather-sunny",
-        "LightRain": "mdi:weather-rainy",
-    }
-    _UNKNOWN_ICON = "mdi:help"
+    Exposes the API's raw icon value as the state. The icon vocabulary is large
+    and undocumented, so we pass it through verbatim rather than mapping it.
+    """
 
     def __init__(
         self,
@@ -163,11 +158,3 @@ class BurgersZooConditionSensor(BurgersZooBaseEntity):
         """Return the raw weather icon value (e.g. "FullSun")."""
         data = self._day_data
         return data.icon_url if data is not None else None
-
-    @property
-    def icon(self) -> str | None:
-        """Return an MDI icon for the condition, or None when unavailable."""
-        value = self.native_value
-        if value is None:
-            return None
-        return self._ICON_MAP.get(value, self._UNKNOWN_ICON)
