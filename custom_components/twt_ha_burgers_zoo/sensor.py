@@ -6,7 +6,7 @@ from homeassistant.components.sensor import (
     SensorEntity,
     SensorStateClass,
 )
-from homeassistant.const import UnitOfTemperature
+from homeassistant.const import PERCENTAGE, UnitOfTemperature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
@@ -33,10 +33,11 @@ async def async_setup_entry(
     entity for a day the API did not return simply reports unavailable.
     """
     coordinator = entry.runtime_data
-    async_add_entities(
-        BurgersZooTemperatureSensor(coordinator, entry, day)
-        for day in range(coordinator.forecast_days)
-    )
+    entities: list[BurgersZooBaseEntity] = []
+    for day in range(coordinator.forecast_days):
+        entities.append(BurgersZooTemperatureSensor(coordinator, entry, day))
+        entities.append(BurgersZooRainSensor(coordinator, entry, day))
+    async_add_entities(entities)
 
 
 class BurgersZooBaseEntity(
@@ -105,3 +106,28 @@ class BurgersZooTemperatureSensor(BurgersZooBaseEntity):
         """Return the expected temperature in degrees Celsius."""
         data = self._day_data
         return data.temperature if data is not None else None
+
+
+class BurgersZooRainSensor(BurgersZooBaseEntity):
+    """Precipitation chance for a single forecast day."""
+
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(
+        self,
+        coordinator: BurgersZooDataUpdateCoordinator,
+        entry: BurgersZooConfigEntry,
+        day: int,
+    ) -> None:
+        """Initialise the chance-of-rain sensor for a forecast day."""
+        super().__init__(coordinator, entry, day, key="chance_of_rain")
+        self._attr_name = (
+            "Chance of rain" if day == 0 else f"Chance of rain day +{day}"
+        )
+
+    @property
+    def native_value(self) -> int | None:
+        """Return the precipitation chance as a percentage."""
+        data = self._day_data
+        return data.chance_of_rain if data is not None else None
