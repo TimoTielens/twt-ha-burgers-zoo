@@ -3,8 +3,10 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock
 
-from homeassistant.const import Platform
+from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
+from homeassistant.const import Platform, UnitOfTemperature
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceEntryType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -20,7 +22,10 @@ from custom_components.twt_ha_burgers_zoo.coordinator import (
     BurgersZooDataUpdateCoordinator,
 )
 from custom_components.twt_ha_burgers_zoo.models import DayData
-from custom_components.twt_ha_burgers_zoo.sensor import BurgersZooBaseEntity
+from custom_components.twt_ha_burgers_zoo.sensor import (
+    BurgersZooBaseEntity,
+    BurgersZooTemperatureSensor,
+)
 
 
 class _ProbeEntity(BurgersZooBaseEntity):
@@ -87,3 +92,53 @@ async def test_base_entity_unavailable_when_day_missing(
 
     assert present.available is True
     assert missing.available is False
+
+
+async def test_temperature_sensor_reports_day_value(hass: HomeAssistant) -> None:
+    entry = _entry()
+    coordinator = _make_coordinator(hass, {0: DayData.from_json({"temperature": 30})})
+
+    sensor = BurgersZooTemperatureSensor(coordinator, entry, day=0)
+
+    assert sensor.native_value == 30
+    assert sensor.device_class == SensorDeviceClass.TEMPERATURE
+    assert sensor.native_unit_of_measurement == UnitOfTemperature.CELSIUS
+    assert sensor.state_class == SensorStateClass.MEASUREMENT
+    assert sensor.unique_id == f"{entry.entry_id}_temperature_0"
+
+
+async def test_temperature_sensor_unknown_when_day_missing(
+    hass: HomeAssistant,
+) -> None:
+    entry = _entry()
+    coordinator = _make_coordinator(hass, {0: DayData.from_json({"temperature": 30})})
+
+    sensor = BurgersZooTemperatureSensor(coordinator, entry, day=2)
+
+    assert sensor.native_value is None
+    assert sensor.available is False
+
+
+async def test_temperature_sensor_per_forecast_day(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api,
+) -> None:
+    mock_config_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    ent_reg = er.async_get(hass)
+    entities = er.async_entries_for_config_entry(
+        ent_reg, mock_config_entry.entry_id
+    )
+    temperature = [e for e in entities if "_temperature_" in e.unique_id]
+    # mock_config_entry is configured with forecast_days = 3
+    assert len(temperature) == 3
+
+    today = next(e for e in temperature if e.unique_id.endswith("_temperature_0"))
+    state = hass.states.get(today.entity_id)
+    assert state is not None
+    assert state.state == "30"
+    assert state.attributes["device_class"] == "temperature"
+    assert state.attributes["unit_of_measurement"] == "°C"
