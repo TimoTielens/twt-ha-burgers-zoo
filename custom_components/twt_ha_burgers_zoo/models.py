@@ -18,7 +18,7 @@ class BusinessHours:
         if not data:
             return None
         return cls(
-            is_open=bool(data.get("isOpen")),
+            is_open=bool(data.get("isOpen")),  # missing/None isOpen intentionally maps to False
             open_time=data.get("openTime"),
             close_time=data.get("closeTime"),
             user_friendly_text=data.get("userFriendlyText"),

@@ -33,6 +33,7 @@ class BurgersZooDataUpdateCoordinator(DataUpdateCoordinator[dict[int, DayData]])
         self.forecast_days = forecast_days
 
     async def _async_update_data(self) -> dict[int, DayData]:
+        """Fetch all configured forecast days from the API."""
         try:
             return await self.client.async_get_days(self.forecast_days)
         except BurgersZooError as err:

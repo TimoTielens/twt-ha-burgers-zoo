@@ -89,3 +89,25 @@ async def test_unknown_language_falls_back_to_nl_nl(full_day_payload: dict) -> N
             mocked.get(_url(0), payload=full_day_payload)
             day = await client.async_get_day(0)
     assert day.temperature == 30
+
+
+async def test_get_days_returns_successful_when_one_day_fails(full_day_payload: dict) -> None:
+    async with aiohttp.ClientSession() as session:
+        client = BurgersZooApiClient(session, "nl")
+        with aioresponses() as mocked:
+            mocked.get(_url(0), payload=full_day_payload)
+            mocked.get(_url(1), status=500)
+            mocked.get(_url(2), payload=full_day_payload)
+            result = await client.async_get_days(3)
+    assert set(result.keys()) == {0, 2}
+    assert 1 not in result
+
+
+async def test_get_days_raises_when_all_days_fail() -> None:
+    async with aiohttp.ClientSession() as session:
+        client = BurgersZooApiClient(session, "nl")
+        with aioresponses() as mocked:
+            mocked.get(_url(0), status=500)
+            mocked.get(_url(1), status=500)
+            with pytest.raises(BurgersZooApiError):
+                await client.async_get_days(2)
