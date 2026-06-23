@@ -1,0 +1,38 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "data": {
+          "language": "Language",
+          "forecast_days": "Number of forecast days"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to the Burgers Zoo API."
+    },
+    "abort": {
+      "single_instance_allowed": "Only a single Burgers Zoo instance is allowed.",
+      "already_configured": "Burgers Zoo is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "language": "Language",
+          "forecast_days": "Number of forecast days"
+        }
+      }
+    }
+  },
+  "selector": {
+    "language": {
+      "options": {
+        "nl": "Nederlands",
+        "en": "English",
+        "de": "Deutsch"
+      }
+    }
+  }
+}

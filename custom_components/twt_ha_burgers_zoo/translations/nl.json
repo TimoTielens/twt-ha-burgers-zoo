@@ -1,0 +1,38 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "data": {
+          "language": "Taal",
+          "forecast_days": "Aantal voorspelde dagen"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Verbinden met de Burgers Zoo API is mislukt."
+    },
+    "abort": {
+      "single_instance_allowed": "Er is slechts één Burgers Zoo-instantie toegestaan.",
+      "already_configured": "Burgers Zoo is al geconfigureerd."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "language": "Taal",
+          "forecast_days": "Aantal voorspelde dagen"
+        }
+      }
+    }
+  },
+  "selector": {
+    "language": {
+      "options": {
+        "nl": "Nederlands",
+        "en": "English",
+        "de": "Deutsch"
+      }
+    }
+  }
+}

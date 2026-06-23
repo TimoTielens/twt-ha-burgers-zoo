@@ -1,7 +1,18 @@
 """Shared fixtures for Burgers Zoo tests."""
 from __future__ import annotations
 
+from collections.abc import Generator
+
 import pytest
+from aioresponses import aioresponses
+from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+from custom_components.twt_ha_burgers_zoo.const import (
+    CONF_FORECAST_DAYS,
+    CONF_LANGUAGE,
+    DOMAIN,
+    SINGLE_INSTANCE_UNIQUE_ID,
+)
 
 pytest_plugins = "pytest_homeassistant_custom_component"
 
@@ -89,3 +100,33 @@ def null_day_payload() -> dict:
         },
         "chanceOfRain": None,
     }
+
+
+@pytest.fixture(autouse=True)
+def auto_enable_custom_integrations(enable_custom_integrations: None) -> None:
+    """Enable loading of the custom integration in all tests."""
+    yield
+
+
+@pytest.fixture
+def mock_config_entry() -> MockConfigEntry:
+    """A config entry for the integration."""
+    return MockConfigEntry(
+        domain=DOMAIN,
+        title="Burgers Zoo",
+        data={CONF_LANGUAGE: "nl", CONF_FORECAST_DAYS: 3},
+        unique_id=SINGLE_INSTANCE_UNIQUE_ID,
+    )
+
+
+@pytest.fixture
+def mock_api(full_day_payload: dict) -> Generator[aioresponses, None, None]:
+    """Mock the Burgers Zoo API for days 0-2."""
+    with aioresponses() as mocked:
+        for day in range(3):
+            mocked.get(
+                f"https://www.burgerszoo.nl/api/weather/{day}?culture=nl-NL",
+                payload=full_day_payload,
+                repeat=True,
+            )
+        yield mocked
