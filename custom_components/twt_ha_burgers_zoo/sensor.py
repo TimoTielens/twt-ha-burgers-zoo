@@ -1,7 +1,12 @@
 """Sensor platform for the Burgers Zoo integration."""
 from __future__ import annotations
 
-from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntity,
+    SensorStateClass,
+)
+from homeassistant.const import UnitOfTemperature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
@@ -10,6 +15,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from . import BurgersZooConfigEntry
 from .const import DOMAIN, NAME
 from .coordinator import BurgersZooDataUpdateCoordinator
+from .models import DayData
 
 MANUFACTURER = "Burgers' Zoo"
 CONFIGURATION_URL = "https://www.burgerszoo.nl"
@@ -22,10 +28,15 @@ async def async_setup_entry(
 ) -> None:
     """Set up Burgers Zoo sensors from a config entry.
 
-    The coordinator is available via ``entry.runtime_data``. Concrete per-day
-    sensors are added by follow-up features; this platform currently registers
-    none.
+    One entity is created per configured forecast day. Iterating the configured
+    day count (rather than the fetched data) keeps the entity set stable; an
+    entity for a day the API did not return simply reports unavailable.
     """
+    coordinator = entry.runtime_data
+    async_add_entities(
+        BurgersZooTemperatureSensor(coordinator, entry, day)
+        for day in range(coordinator.forecast_days)
+    )
 
 
 class BurgersZooBaseEntity(
@@ -60,10 +71,37 @@ class BurgersZooBaseEntity(
         )
 
     @property
+    def _day_data(self) -> DayData | None:
+        """Return this entity's day data, or None when it is unavailable."""
+        if self.coordinator.data is None:
+            return None
+        return self.coordinator.data.get(self._day)
+
+    @property
     def available(self) -> bool:
         """Return True only when the coordinator has data for this day."""
-        return (
-            super().available
-            and self.coordinator.data is not None
-            and self._day in self.coordinator.data
-        )
+        return super().available and self._day_data is not None
+
+
+class BurgersZooTemperatureSensor(BurgersZooBaseEntity):
+    """Expected temperature for a single forecast day."""
+
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(
+        self,
+        coordinator: BurgersZooDataUpdateCoordinator,
+        entry: BurgersZooConfigEntry,
+        day: int,
+    ) -> None:
+        """Initialise the temperature sensor for a forecast day."""
+        super().__init__(coordinator, entry, day, key="temperature")
+        self._attr_name = "Temperature" if day == 0 else f"Temperature day +{day}"
+
+    @property
+    def native_value(self) -> int | None:
+        """Return the expected temperature in degrees Celsius."""
+        data = self._day_data
+        return data.temperature if data is not None else None
