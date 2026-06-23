@@ -10,7 +10,7 @@ from .api import BurgersZooApiClient
 from .const import CONF_FORECAST_DAYS, CONF_LANGUAGE
 from .coordinator import BurgersZooDataUpdateCoordinator
 
-PLATFORMS: list[Platform] = []
+PLATFORMS: list[Platform] = [Platform.SENSOR]
 
 BurgersZooConfigEntry = ConfigEntry[BurgersZooDataUpdateCoordinator]
 
