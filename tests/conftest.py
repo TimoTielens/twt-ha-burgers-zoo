@@ -103,7 +103,7 @@ def null_day_payload() -> dict:
 
 
 @pytest.fixture(autouse=True)
-def auto_enable_custom_integrations(enable_custom_integrations: None) -> None:
+def auto_enable_custom_integrations(enable_custom_integrations: None) -> Generator[None, None, None]:
     """Enable loading of the custom integration in all tests."""
     yield
 
@@ -122,6 +122,7 @@ def mock_config_entry() -> MockConfigEntry:
 @pytest.fixture
 def mock_api(full_day_payload: dict) -> Generator[aioresponses, None, None]:
     """Mock the Burgers Zoo API for days 0-2."""
+    # Only the default nl-NL culture is registered; tests using other languages must register their own URLs.
     with aioresponses() as mocked:
         for day in range(3):
             mocked.get(

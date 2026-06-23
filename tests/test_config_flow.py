@@ -49,6 +49,7 @@ async def test_user_flow_cannot_connect(hass: HomeAssistant) -> None:
         )
 
     assert result2["type"] is FlowResultType.FORM
+    assert result2["step_id"] == "user"
     assert result2["errors"] == {"base": "cannot_connect"}
 
 
