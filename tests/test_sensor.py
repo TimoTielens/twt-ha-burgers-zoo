@@ -4,7 +4,7 @@ from __future__ import annotations
 from unittest.mock import AsyncMock
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
-from homeassistant.const import Platform, UnitOfTemperature
+from homeassistant.const import PERCENTAGE, Platform, UnitOfTemperature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceEntryType
@@ -24,6 +24,7 @@ from custom_components.twt_ha_burgers_zoo.coordinator import (
 from custom_components.twt_ha_burgers_zoo.models import DayData
 from custom_components.twt_ha_burgers_zoo.sensor import (
     BurgersZooBaseEntity,
+    BurgersZooRainSensor,
     BurgersZooTemperatureSensor,
 )
 
@@ -142,3 +143,50 @@ async def test_temperature_sensor_per_forecast_day(
     assert state.state == "30"
     assert state.attributes["device_class"] == "temperature"
     assert state.attributes["unit_of_measurement"] == "°C"
+
+
+async def test_rain_sensor_reports_day_value(hass: HomeAssistant) -> None:
+    entry = _entry()
+    coordinator = _make_coordinator(hass, {0: DayData.from_json({"chanceOfRain": 10})})
+
+    sensor = BurgersZooRainSensor(coordinator, entry, day=0)
+
+    assert sensor.native_value == 10
+    assert sensor.native_unit_of_measurement == PERCENTAGE
+    assert sensor.state_class == SensorStateClass.MEASUREMENT
+    assert sensor.device_class is None
+    assert sensor.unique_id == f"{entry.entry_id}_chance_of_rain_0"
+
+
+async def test_rain_sensor_unknown_when_day_missing(hass: HomeAssistant) -> None:
+    entry = _entry()
+    coordinator = _make_coordinator(hass, {0: DayData.from_json({"chanceOfRain": 10})})
+
+    sensor = BurgersZooRainSensor(coordinator, entry, day=2)
+
+    assert sensor.native_value is None
+    assert sensor.available is False
+
+
+async def test_rain_sensor_per_forecast_day(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_api,
+) -> None:
+    mock_config_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    ent_reg = er.async_get(hass)
+    entities = er.async_entries_for_config_entry(
+        ent_reg, mock_config_entry.entry_id
+    )
+    rain = [e for e in entities if "_chance_of_rain_" in e.unique_id]
+    # mock_config_entry is configured with forecast_days = 3
+    assert len(rain) == 3
+
+    today = next(e for e in rain if e.unique_id.endswith("_chance_of_rain_0"))
+    state = hass.states.get(today.entity_id)
+    assert state is not None
+    assert state.state == "10"
+    assert state.attributes["unit_of_measurement"] == "%"
