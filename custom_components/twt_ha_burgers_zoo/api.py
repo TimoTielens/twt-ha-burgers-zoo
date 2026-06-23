@@ -46,12 +46,11 @@ class BurgersZooApiClient:
 
         try:
             data = await response.json()
-        except (aiohttp.ClientError, ValueError) as err:
+            return DayData.from_json(data)
+        except (aiohttp.ClientError, ValueError, TypeError, AttributeError, KeyError) as err:
             raise BurgersZooApiError(
                 f"Could not parse Burgers Zoo API response for day {day}: {err}"
             ) from err
-
-        return DayData.from_json(data)
 
     async def async_get_days(self, count: int) -> dict[int, DayData]:
         """Fetch days 0..count-1 concurrently."""

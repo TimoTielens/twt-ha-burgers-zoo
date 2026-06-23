@@ -62,3 +62,30 @@ async def test_connection_failure_raises_connection_error() -> None:
             mocked.get(_url(0), exception=aiohttp.ClientConnectionError("boom"))
             with pytest.raises(BurgersZooConnectionError):
                 await client.async_get_day(0)
+
+
+async def test_unexpected_payload_shape_raises_api_error() -> None:
+    async with aiohttp.ClientSession() as session:
+        client = BurgersZooApiClient(session, "nl")
+        with aioresponses() as mocked:
+            mocked.get(_url(0), payload=["unexpected", "list"])
+            with pytest.raises(BurgersZooApiError):
+                await client.async_get_day(0)
+
+
+async def test_english_language_maps_to_en_us(full_day_payload: dict) -> None:
+    async with aiohttp.ClientSession() as session:
+        client = BurgersZooApiClient(session, "en")
+        with aioresponses() as mocked:
+            mocked.get(_url(0, "en-US"), payload=full_day_payload)
+            day = await client.async_get_day(0)
+    assert day.temperature == 30
+
+
+async def test_unknown_language_falls_back_to_nl_nl(full_day_payload: dict) -> None:
+    async with aiohttp.ClientSession() as session:
+        client = BurgersZooApiClient(session, "xx")
+        with aioresponses() as mocked:
+            mocked.get(_url(0), payload=full_day_payload)
+            day = await client.async_get_day(0)
+    assert day.temperature == 30
