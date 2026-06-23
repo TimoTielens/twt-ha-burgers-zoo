@@ -37,6 +37,7 @@ async def async_setup_entry(
     for day in range(coordinator.forecast_days):
         entities.append(BurgersZooTemperatureSensor(coordinator, entry, day))
         entities.append(BurgersZooRainSensor(coordinator, entry, day))
+        entities.append(BurgersZooConditionSensor(coordinator, entry, day))
     async_add_entities(entities)
 
 
@@ -131,3 +132,42 @@ class BurgersZooRainSensor(BurgersZooBaseEntity):
         """Return the precipitation chance as a percentage."""
         data = self._day_data
         return data.chance_of_rain if data is not None else None
+
+
+class BurgersZooConditionSensor(BurgersZooBaseEntity):
+    """Weather condition (icon) for a single forecast day."""
+
+    # Maps the API's icon strings to MDI icons. Intentionally small — only the
+    # values we've observed. An unmapped value keeps its raw state and shows a
+    # question mark, signalling it is new and worth adding here.
+    _ICON_MAP = {
+        "FullSun": "mdi:weather-sunny",
+        "LightRain": "mdi:weather-rainy",
+    }
+    _UNKNOWN_ICON = "mdi:help"
+
+    def __init__(
+        self,
+        coordinator: BurgersZooDataUpdateCoordinator,
+        entry: BurgersZooConfigEntry,
+        day: int,
+    ) -> None:
+        """Initialise the weather-condition sensor for a forecast day."""
+        super().__init__(coordinator, entry, day, key="condition")
+        self._attr_name = (
+            "Weather condition" if day == 0 else f"Weather condition day +{day}"
+        )
+
+    @property
+    def native_value(self) -> str | None:
+        """Return the raw weather icon value (e.g. "FullSun")."""
+        data = self._day_data
+        return data.icon_url if data is not None else None
+
+    @property
+    def icon(self) -> str | None:
+        """Return an MDI icon for the condition, or None when unavailable."""
+        value = self.native_value
+        if value is None:
+            return None
+        return self._ICON_MAP.get(value, self._UNKNOWN_ICON)
