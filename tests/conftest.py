@@ -121,13 +121,13 @@ def mock_config_entry() -> MockConfigEntry:
 
 @pytest.fixture
 def mock_api(full_day_payload: dict) -> Generator[aioresponses, None, None]:
-    """Mock the Burgers Zoo API for days 0-2."""
-    # Only the default nl-NL culture is registered; tests using other languages must register their own URLs.
+    """Mock the Burgers Zoo API for all days and cultures."""
     with aioresponses() as mocked:
-        for day in range(3):
-            mocked.get(
-                f"https://www.burgerszoo.nl/api/weather/{day}?culture=nl-NL",
-                payload=full_day_payload,
-                repeat=True,
-            )
+        for culture in ("nl-NL", "en-US", "de-DE"):
+            for day in range(5):
+                mocked.get(
+                    f"https://www.burgerszoo.nl/api/weather/{day}?culture={culture}",
+                    payload=full_day_payload,
+                    repeat=True,
+                )
         yield mocked

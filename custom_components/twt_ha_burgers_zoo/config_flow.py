@@ -4,7 +4,13 @@ from __future__ import annotations
 from typing import Any
 
 import voluptuous as vol
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
+from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigFlow,
+    ConfigFlowResult,
+    OptionsFlow,
+)
+from homeassistant.core import callback
 from homeassistant.helpers import selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
@@ -55,6 +61,13 @@ def build_schema(defaults: dict[str, Any]) -> vol.Schema:
 class BurgersZooConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle the Burgers Zoo config flow."""
 
+    @staticmethod
+    @callback
+    def async_get_options_flow(
+        config_entry: ConfigEntry,
+    ) -> "BurgersZooOptionsFlow":
+        return BurgersZooOptionsFlow()
+
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
@@ -83,4 +96,21 @@ class BurgersZooConfigFlow(ConfigFlow, domain=DOMAIN):
             step_id="user",
             data_schema=build_schema(user_input or {}),
             errors=errors,
+        )
+
+
+class BurgersZooOptionsFlow(OptionsFlow):
+    """Handle Burgers Zoo options."""
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        if user_input is not None:
+            user_input[CONF_FORECAST_DAYS] = int(user_input[CONF_FORECAST_DAYS])
+            return self.async_create_entry(title="", data=user_input)
+
+        current = {**self.config_entry.data, **self.config_entry.options}
+        return self.async_show_form(
+            step_id="init",
+            data_schema=build_schema(current),
         )

@@ -63,3 +63,29 @@ async def test_single_instance_aborts(
     )
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "single_instance_allowed"
+
+
+async def test_options_flow_updates_entry(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry, mock_api
+) -> None:
+    mock_config_entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    result = await hass.config_entries.options.async_init(
+        mock_config_entry.entry_id
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "init"
+
+    result2 = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {CONF_LANGUAGE: "en", CONF_FORECAST_DAYS: 5},
+    )
+    await hass.async_block_till_done()
+
+    assert result2["type"] is FlowResultType.CREATE_ENTRY
+    assert mock_config_entry.options == {
+        CONF_LANGUAGE: "en",
+        CONF_FORECAST_DAYS: 5,
+    }
