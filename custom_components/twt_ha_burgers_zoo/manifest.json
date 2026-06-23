@@ -1,0 +1,12 @@
+{
+  "domain": "twt_ha_burgers_zoo",
+  "name": "Burgers Zoo",
+  "version": "0.1.0",
+  "codeowners": ["@TimoTielens"],
+  "config_flow": true,
+  "documentation": "https://github.com/TimoTielens/twt-ha-burgers-zoo",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/TimoTielens/twt-ha-burgers-zoo/issues",
+  "requirements": []
+}

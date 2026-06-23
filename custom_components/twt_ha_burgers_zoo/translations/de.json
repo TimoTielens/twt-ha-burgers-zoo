@@ -1,0 +1,38 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "data": {
+          "language": "Sprache",
+          "forecast_days": "Anzahl der Vorhersagetage"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Verbindung zur Burgers Zoo API fehlgeschlagen."
+    },
+    "abort": {
+      "single_instance_allowed": "Es ist nur eine einzige Burgers Zoo-Instanz erlaubt.",
+      "already_configured": "Burgers Zoo ist bereits konfiguriert."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "language": "Sprache",
+          "forecast_days": "Anzahl der Vorhersagetage"
+        }
+      }
+    }
+  },
+  "selector": {
+    "language": {
+      "options": {
+        "nl": "Nederlands",
+        "en": "English",
+        "de": "Deutsch"
+      }
+    }
+  }
+}
